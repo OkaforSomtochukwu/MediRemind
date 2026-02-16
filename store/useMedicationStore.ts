@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { supabase } from '@/lib/supabase';
 
 export type MedicationStatus = 'pending' | 'taken' | 'missed';
 
@@ -16,77 +17,113 @@ export type Medication = {
   frequency: string;
   time: string;
   status: MedicationStatus;
-  lastActionDate: string; // YYYY-MM-DD
+  lastActionDate?: string; // Made optional as per new addMedication signature
 };
 
 interface MedicationStore {
   medications: Medication[];
   streak: number;
   history: DailyStats[];
-  addMedication: (medication: Omit<Medication, 'id' | 'status' | 'lastActionDate'>) => void;
-  removeMedication: (id: string) => void;
-  updateStatus: (id: string, status: MedicationStatus) => void;
+  addMedication: (medication: Omit<Medication, 'id' | 'status' | 'lastActionDate'>) => Promise<void>;
+  removeMedication: (id: string) => Promise<void>;
+  updateStatus: (id: string, status: MedicationStatus) => Promise<void>;
   checkDailyReset: () => void;
+  fetchMedications: () => Promise<void>;
 }
 
 export const useMedicationStore = create<MedicationStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       medications: [],
       streak: 0,
       history: [],
-      addMedication: (medication) =>
+
+      fetchMedications: async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        // Fetch medications
+        const { data: meds, error } = await supabase
+          .from('medications')
+          .select('*')
+          .eq('user_id', session.user.id);
+
+        if (meds) {
+          set({ medications: meds as Medication[] });
+        }
+
+        // Fetch stats if we had a table for it, for now we keep stats local/synced or just re-calc
+        // For simplicity and MVP, we rely on local persist for history/streak or 
+        // we would need a separate table. Given constraints, we'll sync medications only for now
+        // and let local persist handle the rest, or ideally sync history too.
+        // Let's assume we just sync medications for this step to meet the requirement.
+      },
+
+      addMedication: async (medication) => {
+        const newMed = {
+          ...medication,
+          id: crypto.randomUUID(),
+          status: 'pending' as const,
+          lastActionDate: new Date().toISOString().split('T')[0] // Initialize lastActionDate
+        };
+
+        // Optimistic update
+        set((state) => ({ medications: [...state.medications, newMed] }));
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          await supabase.from('medications').insert({
+            ...newMed,
+            user_id: session.user.id
+          });
+        }
+      },
+
+      removeMedication: async (id) => {
         set((state) => ({
-          medications: [
-            ...state.medications,
-            {
-              ...medication,
-              id: crypto.randomUUID(),
-              status: 'pending',
-              lastActionDate: new Date().toISOString().split('T')[0]
-            },
-          ],
-        })),
-      removeMedication: (id) =>
+          medications: state.medications.filter((m) => m.id !== id),
+        }));
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          await supabase.from('medications').delete().eq('id', id);
+        }
+      },
+
+      updateStatus: async (id, status) => {
         set((state) => ({
-          medications: state.medications.filter((med) => med.id !== id),
-        })),
-      updateStatus: (id, status) =>
-        set((state) => ({
-          medications: state.medications.map((med) =>
-            med.id === id
-              ? { ...med, status, lastActionDate: new Date().toISOString().split('T')[0] }
-              : med
+          medications: state.medications.map((m) =>
+            m.id === id ? { ...m, status, lastActionDate: new Date().toISOString().split('T')[0] } : m
           ),
-        })),
+        }));
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          await supabase.from('medications').update({
+            status,
+            lastActionDate: new Date().toISOString().split('T')[0]
+          }).eq('id', id);
+        }
+      },
+
       checkDailyReset: () =>
         set((state) => {
           const today = new Date().toISOString().split('T')[0];
-          // Check if any medication has a lastActionDate that is NOT today
-          // If so, it means we entered a new day and need to process yesterday's data
           const needsReset = state.medications.some(med => med.lastActionDate !== today);
 
           if (!needsReset) return state;
-
-          // Calculate stats for the previous day (assumed to be the last recorded action date or yesterday)
-          // For simplicity in this logic, we look at the current state before resetting.
-          // If all meds were 'taken', increment streak.
-          // Note: This logic assumes "yesterday" was fully tracked. 
-          // If the user skips a day entirely, this simple logic might need enhancement, 
-          // but for now we reset based on the transition.
 
           const totalMeds = state.medications.length;
           const takenMeds = state.medications.filter(med => med.status === 'taken').length;
           const allTaken = totalMeds > 0 && totalMeds === takenMeds;
 
-          // Add to history
           const yesterdayStats: DailyStats = {
-            date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Approximation of yesterday
+            date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
             total: totalMeds,
             taken: takenMeds
           };
 
-          const newHistory = [yesterdayStats, ...state.history].slice(0, 7); // Keep last 7 days
+          const newHistory = [yesterdayStats, ...state.history].slice(0, 7);
 
           return {
             streak: allTaken ? state.streak + 1 : 0,

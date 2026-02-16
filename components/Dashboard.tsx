@@ -8,13 +8,14 @@ import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
-    const { medications, removeMedication, updateStatus, checkDailyReset, streak, history } = useMedicationStore();
+    const { medications, removeMedication, updateStatus, checkDailyReset, streak, history, fetchMedications } = useMedicationStore();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
         setMounted(true);
+        fetchMedications();
         checkDailyReset();
-    }, [checkDailyReset]);
+    }, [checkDailyReset, fetchMedications]);
 
     if (!mounted) return null;
 
