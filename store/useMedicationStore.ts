@@ -2,144 +2,275 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
 
-export type MedicationStatus = 'pending' | 'taken' | 'missed';
-
-export type DailyStats = {
-  date: string;
-  total: number;
-  taken: number;
-};
-
-export type Medication = {
+export interface Medication {
   id: string;
+  user_id: string;
   name: string;
-  dosage: string;
-  frequency: string;
-  time: string;
-  status: MedicationStatus;
-  lastActionDate?: string; // Made optional as per new addMedication signature
-};
-
-interface MedicationStore {
-  medications: Medication[];
-  streak: number;
-  history: DailyStats[];
-  addMedication: (medication: Omit<Medication, 'id' | 'status' | 'lastActionDate'>) => Promise<void>;
-  removeMedication: (id: string) => Promise<void>;
-  updateStatus: (id: string, status: MedicationStatus) => Promise<void>;
-  checkDailyReset: () => void;
-  fetchMedications: () => Promise<void>;
+  dosage: string | null;
+  frequency: string | null;
+  status: 'pending' | 'taken' | 'missed';
+  time: string | null;
+  inventory_count: number;
+  created_at: string;
 }
 
-export const useMedicationStore = create<MedicationStore>()(
+interface HistoryDay {
+  date: string;
+  taken: number;
+  total: number;
+}
+
+interface MedicationState {
+  medications: Medication[];
+  dependents: any[];
+  streak: number;
+  history: HistoryDay[];
+  isLoading: boolean;
+  error: string | null;
+
+  // Actions
+  fetchMedications: (userId?: string) => Promise<void>;
+  fetchDependents: () => Promise<void>;
+  addMedication: (medication: Omit<Medication, 'id' | 'created_at' | 'user_id' | 'status'>) => Promise<void>;
+  updateMedication: (id: string, updates: Partial<Medication>) => Promise<void>;
+  deleteMedication: (id: string) => Promise<void>;
+  updateStatus: (id: string, status: 'pending' | 'taken' | 'missed') => Promise<void>;
+  refillMedication: (id: string, amount: number) => Promise<void>;
+  checkDailyReset: () => void;
+  setMedications: (medications: Medication[]) => void;
+  clearStore: () => void;
+}
+
+export const useMedicationStore = create<MedicationState>()(
   persist(
     (set, get) => ({
       medications: [],
+      dependents: [],
       streak: 0,
       history: [],
+      isLoading: false,
+      error: null,
 
-      fetchMedications: async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+      setMedications: (medications) => set({ medications }),
 
-        // Fetch medications
-        const { data: meds, error } = await supabase
-          .from('medications')
-          .select('*')
-          .eq('user_id', session.user.id);
+      fetchMedications: async (userId?: string) => {
+        set({ isLoading: true });
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            set({ medications: [], isLoading: false });
+            return;
+          }
 
-        if (meds) {
-          set({ medications: meds as Medication[] });
+          const targetUserId = userId || user.id;
+
+          const { data, error } = await supabase
+            .from('medications')
+            .select('*')
+            .eq('user_id', targetUserId)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+          set({ medications: data || [], isLoading: false });
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false, medications: [] });
         }
+      },
 
-        // Fetch stats if we had a table for it, for now we keep stats local/synced or just re-calc
-        // For simplicity and MVP, we rely on local persist for history/streak or 
-        // we would need a separate table. Given constraints, we'll sync medications only for now
-        // and let local persist handle the rest, or ideally sync history too.
-        // Let's assume we just sync medications for this step to meet the requirement.
+      fetchDependents: async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .eq('caregiver_id', user.id);
+
+          if (error) throw error;
+          set({ dependents: data || [] });
+        } catch (error: any) {
+          console.error('Error fetching dependents:', error);
+        }
       },
 
       addMedication: async (medication) => {
-        const newMed = {
-          ...medication,
-          id: crypto.randomUUID(),
-          status: 'pending' as const,
-          lastActionDate: new Date().toISOString().split('T')[0] // Initialize lastActionDate
-        };
+        set({ isLoading: true });
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error('User not authenticated');
 
-        // Optimistic update
-        set((state) => ({ medications: [...state.medications, newMed] }));
+          const newMedication = {
+            ...medication,
+            user_id: user.id,
+            status: 'pending',
+          };
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          await supabase.from('medications').insert({
-            ...newMed,
-            user_id: session.user.id
-          });
+          const { data, error } = await supabase
+            .from('medications')
+            .insert([newMedication])
+            .select()
+            .single();
+
+          if (error) throw error;
+          set((state) => ({
+            medications: [data, ...state.medications],
+            isLoading: false,
+          }));
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
         }
       },
 
-      removeMedication: async (id) => {
-        set((state) => ({
-          medications: state.medications.filter((m) => m.id !== id),
-        }));
+      updateMedication: async (id, updates) => {
+        set({ isLoading: true });
+        try {
+          const { error } = await supabase
+            .from('medications')
+            .update(updates)
+            .eq('id', id);
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          await supabase.from('medications').delete().eq('id', id);
+          if (error) throw error;
+          set((state) => ({
+            medications: state.medications.map((m) =>
+              m.id === id ? { ...m, ...updates } : m
+            ),
+            isLoading: false,
+          }));
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
         }
       },
 
       updateStatus: async (id, status) => {
-        set((state) => ({
-          medications: state.medications.map((m) =>
-            m.id === id ? { ...m, status, lastActionDate: new Date().toISOString().split('T')[0] } : m
-          ),
-        }));
+        set({ isLoading: true });
+        try {
+          const med = get().medications.find(m => m.id === id);
+          let invUpdate = {};
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          await supabase.from('medications').update({
-            status,
-            lastActionDate: new Date().toISOString().split('T')[0]
-          }).eq('id', id);
+          // If marking as taken, decrement inventory
+          if (status === 'taken' && med && med.status !== 'taken') {
+            invUpdate = { inventory_count: Math.max(0, med.inventory_count - 1) };
+          }
+          // If reverting from taken, increment inventory
+          else if (status !== 'taken' && med && med.status === 'taken') {
+            invUpdate = { inventory_count: med.inventory_count + 1 };
+          }
+
+          const updates = { status, ...invUpdate };
+
+          const { error } = await supabase
+            .from('medications')
+            .update(updates)
+            .eq('id', id);
+
+          if (error) throw error;
+          set((state) => ({
+            medications: state.medications.map((m) =>
+              m.id === id ? { ...m, ...updates } : m
+            ),
+            isLoading: false,
+          }));
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
         }
       },
 
-      checkDailyReset: () =>
-        set((state) => {
-          const today = new Date().toISOString().split('T')[0];
-          const needsReset = state.medications.some(med => med.lastActionDate !== today);
+      refillMedication: async (id, amount) => {
+        set({ isLoading: true });
+        try {
+          const med = get().medications.find(m => m.id === id);
+          if (!med) throw new Error('Medication not found');
 
-          if (!needsReset) return state;
+          const newCount = med.inventory_count + amount;
+          const { error } = await supabase
+            .from('medications')
+            .update({ inventory_count: newCount })
+            .eq('id', id);
 
-          const totalMeds = state.medications.length;
-          const takenMeds = state.medications.filter(med => med.status === 'taken').length;
-          const allTaken = totalMeds > 0 && totalMeds === takenMeds;
+          if (error) throw error;
+          set((state) => ({
+            medications: state.medications.map((m) =>
+              m.id === id ? { ...m, inventory_count: newCount } : m
+            ),
+            isLoading: false,
+          }));
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
+        }
+      },
 
-          const yesterdayStats: DailyStats = {
-            date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-            total: totalMeds,
-            taken: takenMeds
+      deleteMedication: async (id) => {
+        set({ isLoading: true });
+        try {
+          const { error } = await supabase
+            .from('medications')
+            .delete()
+            .eq('id', id);
+
+          if (error) throw error;
+          set((state) => ({
+            medications: state.medications.filter((m) => m.id !== id),
+            isLoading: false,
+          }));
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
+        }
+      },
+
+      checkDailyReset: () => {
+        const lastReset = localStorage.getItem('lastResetDate');
+        const today = new Date().toDateString();
+
+        if (lastReset !== today) {
+          const state = get();
+          const taken = state.medications.filter(m => m.status === 'taken').length;
+          const total = state.medications.length;
+
+          // Record history
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const newHistoryDay = {
+            date: yesterday.toDateString(),
+            taken,
+            total
           };
 
-          const newHistory = [yesterdayStats, ...state.history].slice(0, 7);
+          // Update streak
+          let newStreak = state.streak;
+          if (total > 0 && taken === total) {
+            newStreak += 1;
+          } else if (total > 0) {
+            newStreak = 0;
+          }
 
-          return {
-            streak: allTaken ? state.streak + 1 : 0,
-            history: newHistory,
-            medications: state.medications.map((med) => {
-              if (med.lastActionDate !== today) {
-                return { ...med, status: 'pending', lastActionDate: today };
-              }
-              return med;
-            }),
-          };
-        }),
+          // Reset status on Supabase for all meds? 
+          // Usually daily resets are local or handled via a cron.
+          // For this MVP, we will update local state and Supabase.
+          const resetMeds = state.medications.map(m => ({ ...m, status: 'pending' as const }));
+
+          set({
+            medications: resetMeds,
+            streak: newStreak,
+            history: [newHistoryDay, ...state.history].slice(0, 30)
+          });
+
+          localStorage.setItem('lastResetDate', today);
+
+          // Note: In a real SaaS, we'd batch update Supabase here.
+        }
+      },
+
+      clearStore: () => set({ medications: [], streak: 0, history: [], error: null, isLoading: false }),
     }),
     {
       name: 'medication-storage',
       storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        medications: state.medications,
+        streak: state.streak,
+        history: state.history
+      }),
     }
   )
 );

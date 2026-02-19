@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Loader2, User, UserCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import CaregiverInvites from '@/components/Caregiver/CaregiverInvites';
 
 interface Profile {
     full_name: string;
@@ -154,6 +155,16 @@ export default function ProfilePage() {
 
                         </div>
                     </div>
+                </motion.div>
+
+                {/* Caregiver Section */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="mt-8"
+                >
+                    <CaregiverInvites />
                 </motion.div>
             </div>
         </div>

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+import { motion } from 'framer-motion';
+import { LogIn, Mail, Lock, AlertCircle, Pill } from 'lucide-react';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -23,123 +24,109 @@ export default function LoginPage() {
                 email,
                 password,
             });
+
             if (error) throw error;
-            router.push('/dashboard');
-        } catch (err: any) {
-            setError(err.message);
+            router.push('/');
+            router.refresh();
+        } catch (error: any) {
+            setError(error.message);
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-            <div className="sm:mx-auto sm:w-full sm:max-w-md">
-                <Link href="/" className="flex justify-center items-center gap-2 mb-6">
-                    <div className="bg-teal-500 p-2 rounded-lg">
-                        <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                        </svg>
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="max-w-md w-full"
+            >
+                <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-800">
+                    <div className="flex flex-col items-center mb-8">
+                        <div className="w-16 h-16 bg-teal-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-teal-200 dark:shadow-teal-900/20">
+                            <Pill className="text-white w-8 h-8" />
+                        </div>
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Welcome Back</h1>
+                        <p className="text-slate-500 dark:text-slate-400 mt-2">Sign in to manage your medications</p>
                     </div>
-                    <span className="text-3xl font-bold bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent">
-                        MediRemind
-                    </span>
-                </Link>
-                <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900 dark:text-white">
-                    Sign in to your account
-                </h2>
-                <p className="mt-2 text-center text-sm text-slate-600 dark:text-slate-400">
-                    New here?{' '}
-                    <Link
-                        href="/signup"
-                        className="font-medium text-teal-600 hover:text-teal-500 transition-colors"
-                    >
-                        Create an account
-                    </Link>
-                </p>
-            </div>
 
-            <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-                <div className="bg-white dark:bg-slate-900 py-8 px-4 shadow-xl shadow-slate-200/50 dark:shadow-none sm:rounded-xl sm:px-10 border border-slate-100 dark:border-slate-800">
-                    <form className="space-y-6" onSubmit={handleLogin}>
+                    <form onSubmit={handleLogin} className="space-y-6">
                         <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                Email address
-                            </label>
-                            <div className="mt-1 relative rounded-md shadow-sm">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Mail className="h-5 w-5 text-slate-400" aria-hidden="true" />
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <Mail className="h-5 w-5 text-slate-400" />
                                 </div>
                                 <input
-                                    id="email"
-                                    name="email"
                                     type="email"
-                                    autoComplete="email"
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="block w-full pl-10 sm:text-sm border-slate-300 dark:border-slate-700 rounded-lg focus:ring-teal-500 focus:border-teal-500 dark:bg-slate-800 dark:text-white py-2"
-                                    placeholder="you@example.com"
+                                    className="block w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all outline-none text-slate-900 dark:text-white placeholder:text-slate-400"
+                                    placeholder="name@example.com"
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                Password
-                            </label>
-                            <div className="mt-1 relative rounded-md shadow-sm">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Lock className="h-5 w-5 text-slate-400" aria-hidden="true" />
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Password</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <Lock className="h-5 w-5 text-slate-400" />
                                 </div>
                                 <input
-                                    id="password"
-                                    name="password"
                                     type="password"
-                                    autoComplete="current-password"
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="block w-full pl-10 sm:text-sm border-slate-300 dark:border-slate-700 rounded-lg focus:ring-teal-500 focus:border-teal-500 dark:bg-slate-800 dark:text-white py-2"
+                                    className="block w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all outline-none text-slate-900 dark:text-white placeholder:text-slate-400"
                                     placeholder="••••••••"
                                 />
                             </div>
                         </div>
 
                         {error && (
-                            <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-4">
-                                <div className="flex">
-                                    <div className="flex-shrink-0">
-                                        <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
-                                    </div>
-                                    <div className="ml-3">
-                                        <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                                            Authentication Error
-                                        </h3>
-                                        <div className="mt-2 text-sm text-red-700 dark:text-red-300">
-                                            <p>{error}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="flex items-center gap-2 p-3 bg-red-50 text-red-600 rounded-xl text-sm border border-red-100"
+                            >
+                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                <p>{error}</p>
+                            </motion.div>
                         )}
 
-                        <div>
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                            >
-                                {loading ? (
-                                    <Loader2 className="h-5 w-5 animate-spin" />
-                                ) : (
-                                    'Sign in'
-                                )}
-                            </button>
-                        </div>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-75 shadow-lg shadow-teal-100 dark:shadow-teal-900/20"
+                        >
+                            {loading ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    <LogIn className="w-5 h-5" />
+                                    Sign In
+                                </>
+                            )}
+                        </button>
                     </form>
+
+                    <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 text-center">
+                        <p className="text-slate-500 dark:text-slate-400">
+                            Don't have an account?{' '}
+                            <Link
+                                href="/signup"
+                                className="text-teal-600 font-semibold hover:text-teal-700 transition-colors"
+                            >
+                                Create an account
+                            </Link>
+                        </p>
+                    </div>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 }

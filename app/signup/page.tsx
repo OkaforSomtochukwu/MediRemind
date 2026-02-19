@@ -1,242 +1,167 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+import { motion } from 'framer-motion';
+import { UserPlus, Mail, Lock, AlertCircle, Pill, User } from 'lucide-react';
 
 export default function SignupPage() {
-    const [formData, setFormData] = useState({
-        email: '',
-        password: '',
-        confirmPassword: '',
-        fullName: '',
-        age: '',
-        gender: '',
-        occupation: '',
-        maritalStatus: '',
-        address: '',
-        nationality: '',
-        religion: '',
-        admissionMode: '',
-    });
-
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [fullName, setFullName] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError(null);
 
-        if (formData.password !== formData.confirmPassword) {
-            setError("Passwords do not match");
-            setLoading(false);
-            return;
-        }
-
         try {
-            // 1. Sign up user
+            // 1. Sign up the user
             const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: formData.email,
-                password: formData.password,
+                email,
+                password,
             });
 
             if (authError) throw authError;
 
             if (authData.user) {
-                // 2. Insert profile data
+                // 2. Create profile record
                 const { error: profileError } = await supabase
                     .from('profiles')
                     .insert([
                         {
                             id: authData.user.id,
-                            full_name: formData.fullName,
-                            age: parseInt(formData.age),
-                            gender: formData.gender,
-                            occupation: formData.occupation,
-                            marital_status: formData.maritalStatus,
-                            address: formData.address,
-                            nationality: formData.nationality,
-                            religion: formData.religion,
-                            admission_mode: formData.admissionMode,
-                            updated_at: new Date(),
-                        }
+                            full_name: fullName,
+                            email: email,
+                            updated_at: new Date().toISOString(),
+                        },
                     ]);
 
-                if (profileError) {
-                    // If profile creation fails, we might want to warn the user, but account is created.
-                    // For now, treat as error.
-                    console.error('Profile creation error:', profileError);
-                    throw new Error('Failed to create user profile. Please try again.');
-                }
+                if (profileError) throw profileError;
 
-                router.push('/dashboard');
+                router.push('/login?message=Check your email to confirm your account');
             }
-        } catch (err: any) {
-            setError(err.message);
+        } catch (error: any) {
+            setError(error.message);
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-            <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
-                <div className="text-center mb-8">
-                    <Link href="/" className="inline-flex items-center text-slate-500 hover:text-teal-600 transition-colors mb-4">
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Back to Home
-                    </Link>
-                    <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white">
-                        Create your account
-                    </h2>
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                        Join MediRemind to track your health journey.
-                    </p>
-                </div>
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="max-w-md w-full"
+            >
+                <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-800">
+                    <div className="flex flex-col items-center mb-8">
+                        <div className="w-16 h-16 bg-teal-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-teal-200 dark:shadow-teal-900/20">
+                            <Pill className="text-white w-8 h-8" />
+                        </div>
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Create Account</h1>
+                        <p className="text-slate-500 dark:text-slate-400 mt-2">Start tracking your health journey</p>
+                    </div>
 
-                <div className="bg-white dark:bg-slate-900 py-8 px-4 shadow-xl shadow-slate-200/50 dark:shadow-none sm:rounded-xl sm:px-10 border border-slate-100 dark:border-slate-800">
-                    <form className="space-y-6" onSubmit={handleSignup}>
-
-                        {/* Account Info */}
-                        <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
-                            <div className="sm:col-span-2">
-                                <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Account Information</h3>
-                            </div>
-
-                            <div className="sm:col-span-2">
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>
-                                <input name="fullName" type="text" required value={formData.fullName} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3" />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Email</label>
-                                <input name="email" type="email" required value={formData.email} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3" />
-                            </div>
-
-                            <div>
-                                {/* Placeholder to align grid if needed, or just let it flow */}
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Password</label>
-                                <input name="password" type="password" required minLength={6} value={formData.password} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3" />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Confirm Password</label>
-                                <input name="confirmPassword" type="password" required minLength={6} value={formData.confirmPassword} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3" />
+                    <form onSubmit={handleSignup} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Full Name</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <User className="h-5 w-5 text-slate-400" />
+                                </div>
+                                <input
+                                    type="text"
+                                    required
+                                    value={fullName}
+                                    onChange={(e) => setFullName(e.target.value)}
+                                    className="block w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all outline-none text-slate-900 dark:text-white placeholder:text-slate-400"
+                                    placeholder="John Doe"
+                                />
                             </div>
                         </div>
 
-                        {/* Personal Details */}
-                        <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2 mt-8">
-                            <div className="sm:col-span-2">
-                                <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Personal Details</h3>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <Mail className="h-5 w-5 text-slate-400" />
+                                </div>
+                                <input
+                                    type="email"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="block w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all outline-none text-slate-900 dark:text-white placeholder:text-slate-400"
+                                    placeholder="name@example.com"
+                                />
                             </div>
+                        </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Age</label>
-                                <input name="age" type="number" required value={formData.age} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3" />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Gender</label>
-                                <select name="gender" required value={formData.gender} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3">
-                                    <option value="">Select...</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-
-                            <div className="sm:col-span-2">
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Address</label>
-                                <input name="address" type="text" required value={formData.address} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3" />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Occupation</label>
-                                <input name="occupation" type="text" required value={formData.occupation} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3" />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Marital Status</label>
-                                <select name="maritalStatus" required value={formData.maritalStatus} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3">
-                                    <option value="">Select...</option>
-                                    <option value="Single">Single</option>
-                                    <option value="Married">Married</option>
-                                    <option value="Divorced">Divorced</option>
-                                    <option value="Widowed">Widowed</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Nationality / Tribe</label>
-                                <input name="nationality" type="text" required value={formData.nationality} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3" />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Religion</label>
-                                <input name="religion" type="text" required value={formData.religion} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3" />
-                            </div>
-
-                            <div className="sm:col-span-2">
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Mode of Admission (if any)</label>
-                                <input name="admissionMode" type="text" placeholder="e.g. Emergency, Referral, Self-reporting" value={formData.admissionMode} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:bg-slate-800 dark:text-white py-2 px-3" />
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Password</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <Lock className="h-5 w-5 text-slate-400" />
+                                </div>
+                                <input
+                                    type="password"
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="block w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all outline-none text-slate-900 dark:text-white placeholder:text-slate-400"
+                                    placeholder="••••••••"
+                                />
                             </div>
                         </div>
 
                         {error && (
-                            <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-4 mt-6">
-                                <div className="flex">
-                                    <div className="flex-shrink-0">
-                                        <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
-                                    </div>
-                                    <div className="ml-3">
-                                        <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                                            Error
-                                        </h3>
-                                        <div className="mt-2 text-sm text-red-700 dark:text-red-300">
-                                            <p>{error}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="flex items-center gap-2 p-3 bg-red-50 text-red-600 rounded-xl text-sm border border-red-100"
+                            >
+                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                <p>{error}</p>
+                            </motion.div>
                         )}
 
-                        <div className="mt-6">
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                            >
-                                {loading ? (
-                                    <Loader2 className="h-5 w-5 animate-spin" />
-                                ) : (
-                                    'Create Account'
-                                )}
-                            </button>
-                        </div>
-
-                        <div className="text-center mt-4">
-                            <p className="text-sm text-slate-600 dark:text-slate-400">
-                                Already have an account?{' '}
-                                <Link href="/login" className="font-medium text-teal-600 hover:text-teal-500">
-                                    Sign in
-                                </Link>
-                            </p>
-                        </div>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-75 shadow-lg shadow-teal-100 dark:shadow-teal-900/20 mt-2"
+                        >
+                            {loading ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    <UserPlus className="w-5 h-5" />
+                                    Create Account
+                                </>
+                            )}
+                        </button>
                     </form>
+
+                    <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 text-center">
+                        <p className="text-slate-500 dark:text-slate-400">
+                            Already have an account?{' '}
+                            <Link
+                                href="/login"
+                                className="text-teal-600 font-semibold hover:text-teal-700 transition-colors"
+                            >
+                                Sign in here
+                            </Link>
+                        </p>
+                    </div>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 }

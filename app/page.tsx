@@ -1,10 +1,36 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Bell, Clock, Activity, CheckCircle, Shield, Smartphone, Zap } from 'lucide-react';
+import { Bell, Clock, Activity, CheckCircle, Shield, Smartphone, Zap, ArrowRight, Pill } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function LandingPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.push('/dashboard');
+      } else {
+        setLoading(false);
+      }
+    };
+    checkUser();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-950">
+        <div className="w-12 h-12 border-4 border-teal-600/20 border-t-teal-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -43,10 +69,16 @@ export default function LandingPage() {
             </p>
             <div className="flex justify-center gap-4">
               <Link
-                href="/dashboard"
+                href="/signup"
                 className="px-8 py-4 text-lg font-bold rounded-xl text-white bg-teal-600 hover:bg-teal-700 shadow-lg shadow-teal-500/30 transition-all hover:scale-105"
               >
                 Get Started
+              </Link>
+              <Link
+                href="/login"
+                className="px-8 py-4 text-lg font-bold rounded-xl text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
+              >
+                Sign In
               </Link>
             </div>
           </motion.div>
@@ -66,8 +98,8 @@ export default function LandingPage() {
                     <Activity className="h-6 w-6 text-teal-600 dark:text-teal-400" />
                   </div>
                 </div>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Your Dashboard</h3>
-                <p className="text-slate-500 dark:text-slate-400 mt-2">Clean, intuitive, and distraction-free.</p>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Your SaaS Dashboard</h3>
+                <p className="text-slate-500 dark:text-slate-400 mt-2">Clean, intuitive, and distraction-free medication tracking.</p>
               </div>
               {/* Decorative Dashboard Elements */}
               <div className="absolute top-4 left-4 right-4 h-full bg-slate-50 dark:bg-slate-950 rounded-t-xl border-t border-l border-r border-slate-200 dark:border-slate-800 opacity-50 transform translate-y-12 transition-transform group-hover:translate-y-8" />
@@ -76,14 +108,14 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Social Proof / Stats */}
+      {/* Stats Section */}
       <section className="py-10 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-200 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-3 text-center">
             {[
               { icon: Zap, label: "Works on All Devices", desc: "Mobile, Tablet, Desktop" },
-              { icon: Shield, label: "Privacy Focused", desc: "Local Storage Only" },
-              { icon: CheckCircle, label: "100% Free", desc: "No Ads, No Sign-up" },
+              { icon: Shield, label: "Privacy Focused", desc: "Secure Account Access" },
+              { icon: CheckCircle, label: "100% Secure", desc: "Your data is private" },
             ].map((stat, i) => (
               <div key={i} className="flex flex-col items-center">
                 <stat.icon className="h-8 w-8 text-teal-500 mb-3" />
@@ -100,7 +132,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white sm:text-4xl">
-              Everything in one place
+              Professional Medication Management
             </h2>
             <p className="mt-4 text-xl text-slate-500 dark:text-slate-400">
               Essential features designed for your peace of mind.
@@ -116,19 +148,19 @@ export default function LandingPage() {
           >
             {[
               {
-                icon: Clock,
-                title: "Smart Scheduling",
-                desc: "Set flexible schedules: daily, weekly, or as needed reminders."
+                icon: Shield,
+                title: "Data Privacy",
+                desc: "Your medications are linked to your secure account. Nobody else can see them."
               },
               {
                 icon: Activity,
-                title: "Progress Tracking",
-                desc: "Visualize your adherence streaks and weekly stats instantly."
+                title: "Inventory Tracking",
+                desc: "Stay ahead with real-time pill counts and low-stock alerts."
               },
               {
-                icon: Bell,
-                title: "Browser Notifications",
-                desc: "Get timely alerts right on your device so you stay on track."
+                icon: Zap,
+                title: "Multi-device Sync",
+                desc: "Accessed via any device, always in sync with your secure cloud account."
               }
             ].map((feature, index) => (
               <motion.div
@@ -151,19 +183,16 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Divider */}
-      <div className="border-t border-slate-200 dark:border-slate-800" />
-
       {/* Footer */}
-      <footer className="bg-white dark:bg-slate-950 py-12">
+      <footer className="bg-white dark:bg-slate-950 py-12 border-t border-slate-200 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center">
           <p className="text-base text-slate-500 dark:text-slate-400 text-center">
-            &copy; {new Date().getFullYear()} MediRemind. Built with ❤️ for better health.
+            &copy; {new Date().getFullYear()} MediRemind SaaS. Built for better health.
           </p>
           <div className="mt-4 flex space-x-6">
-            <span className="text-slate-400 hover:text-slate-500 dark:hover:text-slate-300 cursor-pointer">Privacy</span>
-            <span className="text-slate-400 hover:text-slate-500 dark:hover:text-slate-300 cursor-pointer">Terms</span>
-            <span className="text-slate-400 hover:text-slate-500 dark:hover:text-slate-300 cursor-pointer">Contact</span>
+            <span className="text-slate-400 hover:text-teal-500 dark:hover:text-teal-300 cursor-pointer">Privacy</span>
+            <span className="text-slate-400 hover:text-teal-500 dark:hover:text-teal-300 cursor-pointer">Terms</span>
+            <span className="text-slate-400 hover:text-teal-500 dark:hover:text-teal-300 cursor-pointer">Support</span>
           </div>
         </div>
       </footer>
