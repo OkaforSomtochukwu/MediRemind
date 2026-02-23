@@ -13,10 +13,16 @@ export default function LandingPage() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        router.push('/dashboard');
-      } else {
+      try {
+        const { data, error: authError } = await supabase.auth.getSession();
+        const session = data?.session;
+        if (session && !authError) {
+          router.push('/dashboard');
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Session check failed:', error);
         setLoading(false);
       }
     };

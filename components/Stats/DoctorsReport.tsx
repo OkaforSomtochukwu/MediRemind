@@ -105,14 +105,6 @@ export default function DoctorsReport() {
                 </div>
             </div>
 
-            <style jsx global>{`
-                @media print {
-                    .no-print { display: none !important; }
-                    body { background: white !important; }
-                    .print\\:p-0 { padding: 0 !important; }
-                    .print\\:shadow-none { shadow: none !important; }
-                }
-            `}</style>
         </div>
     );
 }

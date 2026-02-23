@@ -31,6 +31,8 @@ import { supabase } from '@/lib/supabase';
 import clsx from 'clsx';
 import AdherenceHeatmap from '@/components/Stats/AdherenceHeatmap';
 import DoctorsReport from '@/components/Stats/DoctorsReport';
+import { checkMissedDoses } from '@/lib/MissedDoseChecker';
+import NotificationManager from '@/components/NotificationManager';
 
 export default function Dashboard() {
     const {
@@ -43,11 +45,12 @@ export default function Dashboard() {
         isLoading,
         error,
         clearStore,
-        refillMedication
+        refillMedication,
+        selectedDependentId,
+        setSelectedDependentId
     } = useMedicationStore();
     const [showAddForm, setShowAddForm] = useState(false);
     const [userName, setUserName] = useState<string | null>(null);
-    const [activeDependent, setActiveDependent] = useState<any>(null); // null means "Personal"
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const isMounted = useRef(true);
@@ -56,16 +59,17 @@ export default function Dashboard() {
         isMounted.current = true;
         const init = async () => {
             try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user && isMounted.current) {
+                const { data, error: authError } = await supabase.auth.getUser();
+                const user = data?.user;
+                if (user && !authError && isMounted.current) {
                     setUserName(user.user_metadata?.full_name || user.email);
                     // Fetch dependents and medications in parallel for speed
                     await Promise.all([
                         fetchDependents(),
-                        fetchMedications(activeDependent?.id)
+                        fetchMedications(selectedDependentId || undefined)
                     ]);
 
-                    if (!activeDependent && isMounted.current) {
+                    if (!selectedDependentId && isMounted.current) {
                         checkDailyReset();
                     }
                 }
@@ -75,7 +79,7 @@ export default function Dashboard() {
         };
         init();
         return () => { isMounted.current = false; };
-    }, [fetchMedications, fetchDependents, checkDailyReset, activeDependent]);
+    }, [fetchMedications, fetchDependents, checkDailyReset, selectedDependentId]);
 
     const totalMeds = medications.length;
     const takenMeds = medications.filter(m => m.status === 'taken').length;
@@ -83,8 +87,9 @@ export default function Dashboard() {
     const lowStockMeds = medications.filter(m => m.inventory_count <= 5);
     const allTaken = totalMeds > 0 && takenMeds === totalMeds;
 
-    const currentViewTitle = activeDependent ? `${activeDependent.full_name}'s Schedule` : 'Personal Dashboard';
-    const isReadOnly = !!activeDependent;
+    const currentViewTitle = selectedDependentId ? "Dependent's Schedule" : 'Personal Dashboard';
+    const activeDependent = dependents.find(d => d.id === selectedDependentId);
+    const isReadOnly = !!selectedDependentId;
 
     return (
         <div className="min-h-[calc(100vh-4rem)] bg-slate-50 dark:bg-slate-950 p-4 sm:p-6 lg:p-8">
@@ -134,6 +139,36 @@ export default function Dashboard() {
                         >
                             <AlertCircle className="w-5 h-5 text-red-600" />
                             <p className="text-sm font-bold text-red-900 dark:text-red-100">{error}</p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Missed Dose Caregiver Alert */}
+                <AnimatePresence>
+                    {isReadOnly && checkMissedDoses(medications).length > 0 && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="bg-red-600 border border-red-500 rounded-3xl p-4 flex items-center justify-between gap-4 overflow-hidden shadow-lg shadow-red-200 dark:shadow-none mb-6"
+                        >
+                            <div className="flex items-center gap-3 text-white">
+                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                                    <AlertCircle className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-black uppercase tracking-widest">Missed Dose Alert</p>
+                                    <p className="text-xs font-bold opacity-90">{activeDependent?.full_name} has {checkMissedDoses(medications).length} doses overdue!</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setSelectedDependentId(selectedDependentId)} // Trigger refresh
+                                    className="px-4 py-2 bg-white text-red-600 text-xs font-black rounded-xl hover:bg-red-50 transition-all whitespace-nowrap"
+                                >
+                                    Check Schedule
+                                </button>
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -211,7 +246,7 @@ export default function Dashboard() {
                             </motion.div>
                             {isReadOnly && (
                                 <button
-                                    onClick={() => setActiveDependent(null)}
+                                    onClick={() => setSelectedDependentId(null)}
                                     className="text-xs font-bold text-slate-400 hover:text-teal-600 transition-colors"
                                 >
                                     Switch to Personal
@@ -231,10 +266,10 @@ export default function Dashboard() {
                         {dependents.length > 0 && (
                             <div className="flex items-center gap-2 p-1 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                                 <button
-                                    onClick={() => setActiveDependent(null)}
+                                    onClick={() => setSelectedDependentId(null)}
                                     className={clsx(
                                         "px-4 py-2 rounded-xl text-xs font-black transition-all",
-                                        !activeDependent ? "bg-teal-600 text-white shadow-lg shadow-teal-100 dark:shadow-none" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                        !selectedDependentId ? "bg-teal-600 text-white shadow-lg shadow-teal-100 dark:shadow-none" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
                                     )}
                                 >
                                     Me
@@ -242,10 +277,10 @@ export default function Dashboard() {
                                 {dependents.map(dep => (
                                     <button
                                         key={dep.id}
-                                        onClick={() => setActiveDependent(dep)}
+                                        onClick={() => setSelectedDependentId(dep.id)}
                                         className={clsx(
                                             "px-4 py-2 rounded-xl text-xs font-black transition-all",
-                                            activeDependent?.id === dep.id ? "bg-teal-600 text-white shadow-lg shadow-teal-100 dark:shadow-none" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                            selectedDependentId === dep.id ? "bg-teal-600 text-white shadow-lg shadow-teal-100 dark:shadow-none" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
                                         )}
                                     >
                                         {dep.full_name.split(' ')[0]}
@@ -256,7 +291,7 @@ export default function Dashboard() {
 
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => fetchMedications(activeDependent?.id)}
+                                onClick={() => fetchMedications(selectedDependentId || undefined)}
                                 className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl text-slate-400 hover:text-teal-600 transition-all shadow-sm flex items-center gap-2"
                                 title="Refresh Schedule"
                             >

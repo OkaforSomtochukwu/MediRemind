@@ -43,6 +43,26 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+    const url = new URL(event.request.url);
+
+    // Network-first strategy for the app shell / landing page to avoid stale content issues
+    if (url.pathname === '/' || url.pathname === '/dashboard') {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    // Update cache with the fresh response
+                    const responseClone = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseClone);
+                    });
+                    return response;
+                })
+                .catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
+    // Default cache-first strategy for other assets
     event.respondWith(
         caches.match(event.request).then((response) => {
             return response || fetch(event.request);

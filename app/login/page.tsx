@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { motion } from 'framer-motion';
-import { LogIn, Mail, Lock, AlertCircle, Pill } from 'lucide-react';
+import { LogIn, Mail, Lock, AlertCircle, Pill, ArrowLeft } from 'lucide-react';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -43,6 +43,13 @@ export default function LoginPage() {
                 transition={{ duration: 0.5 }}
                 className="max-w-md w-full"
             >
+                <Link
+                    href="/"
+                    className="inline-flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors mb-6 group px-2"
+                >
+                    <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                    <span className="text-sm font-semibold">Back to Home</span>
+                </Link>
                 <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-800">
                     <div className="flex flex-col items-center mb-8">
                         <div className="w-16 h-16 bg-teal-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-teal-200 dark:shadow-teal-900/20">

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useMedicationStore, Medication } from '@/store/useMedicationStore';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Trash2, AlertTriangle, CheckCircle2, RotateCcw, Package, Clock, XCircle, AlertCircle, Plus } from 'lucide-react';
+import { Edit2, Trash2, AlertTriangle, CheckCircle2, RotateCcw, Package, Clock, XCircle, AlertCircle, Plus, Pill } from 'lucide-react';
 import MedicationForm from './MedicationForm';
 import clsx from 'clsx';
 

@@ -48,3 +48,13 @@ body {
     scrollbar-width: none;
   }
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+}

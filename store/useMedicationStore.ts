@@ -27,10 +27,17 @@ interface MedicationState {
   history: HistoryDay[];
   isLoading: boolean;
   error: string | null;
+  selectedDependentId: string | null;
+  invites: any[];
 
   // Actions
   fetchMedications: (userId?: string) => Promise<void>;
   fetchDependents: () => Promise<void>;
+  fetchInvites: () => Promise<void>;
+  setSelectedDependentId: (id: string | null) => void;
+  sendInvite: (email: string) => Promise<void>;
+  acceptInvite: (inviteId: string) => Promise<void>;
+  rejectInvite: (inviteId: string) => Promise<void>;
   addMedication: (medication: Omit<Medication, 'id' | 'created_at' | 'user_id' | 'status'>) => Promise<void>;
   updateMedication: (id: string, updates: Partial<Medication>) => Promise<void>;
   deleteMedication: (id: string) => Promise<void>;
@@ -46,6 +53,8 @@ export const useMedicationStore = create<MedicationState>()(
     (set, get) => ({
       medications: [],
       dependents: [],
+      selectedDependentId: null,
+      invites: [],
       streak: 0,
       history: [],
       isLoading: false,
@@ -56,11 +65,12 @@ export const useMedicationStore = create<MedicationState>()(
       fetchMedications: async (userId?: string) => {
         set({ isLoading: true });
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) {
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError || !authData?.user) {
             set({ medications: [], isLoading: false });
             return;
           }
+          const user = authData.user;
 
           const targetUserId = userId || user.id;
 
@@ -79,8 +89,9 @@ export const useMedicationStore = create<MedicationState>()(
 
       fetchDependents: async () => {
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError || !authData?.user) return;
+          const user = authData.user;
 
           const { data, error } = await supabase
             .from('profiles')
@@ -94,11 +105,114 @@ export const useMedicationStore = create<MedicationState>()(
         }
       },
 
+      fetchInvites: async () => {
+        try {
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError || !authData?.user) return;
+          const user = authData.user;
+
+          const { data, error } = await supabase
+            .from('caregiver_invites')
+            .select(`
+              *,
+              inviter:profiles!inviter_id(full_name, email)
+            `)
+            .or(`inviter_id.eq.${user.id},invitee_email.eq.${user.email}`)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+          set({ invites: data || [] });
+        } catch (error: any) {
+          console.error('Error fetching invites:', error);
+        }
+      },
+
+      setSelectedDependentId: (id) => {
+        set({ selectedDependentId: id });
+        get().fetchMedications(id || undefined);
+      },
+
+      sendInvite: async (email) => {
+        set({ isLoading: true });
+        try {
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError || !authData?.user) throw new Error('User not authenticated');
+          const user = authData.user;
+
+          const { error } = await supabase
+            .from('caregiver_invites')
+            .insert([{ inviter_id: user.id, invitee_email: email, status: 'pending' }]);
+
+          if (error) throw error;
+          await get().fetchInvites();
+          set({ isLoading: false });
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
+        }
+      },
+
+      acceptInvite: async (inviteId) => {
+        set({ isLoading: true });
+        try {
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError || !authData?.user) throw new Error('User not authenticated');
+          const user = authData.user;
+
+          // 1. Get invite details
+          const { data: invite, error: inviteError } = await supabase
+            .from('caregiver_invites')
+            .select('*')
+            .eq('id', inviteId)
+            .single();
+
+          if (inviteError) throw inviteError;
+
+          // 2. Update invite status
+          const { error: updateInviteError } = await supabase
+            .from('caregiver_invites')
+            .update({ status: 'accepted' })
+            .eq('id', inviteId);
+
+          if (updateInviteError) throw updateInviteError;
+
+          // 3. Link caregiver to dependent profile
+          const { error: updateProfileError } = await supabase
+            .from('profiles')
+            .update({ caregiver_id: user.id })
+            .eq('id', invite.inviter_id);
+
+          if (updateProfileError) throw updateProfileError;
+
+          await get().fetchInvites();
+          await get().fetchDependents();
+          set({ isLoading: false });
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
+        }
+      },
+
+      rejectInvite: async (inviteId) => {
+        set({ isLoading: true });
+        try {
+          const { error } = await supabase
+            .from('caregiver_invites')
+            .update({ status: 'rejected' })
+            .eq('id', inviteId);
+
+          if (error) throw error;
+          await get().fetchInvites();
+          set({ isLoading: false });
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
+        }
+      },
+
       addMedication: async (medication) => {
         set({ isLoading: true });
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error('User not authenticated');
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError || !authData?.user) throw new Error('User not authenticated');
+          const user = authData.user;
 
           const newMedication = {
             ...medication,

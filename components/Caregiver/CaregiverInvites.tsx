@@ -1,127 +1,54 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useEffect, useState } from 'react';
+import { useMedicationStore } from '@/store/useMedicationStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserPlus, Check, X, Mail, Shield, User as UserIcon, Loader2 } from 'lucide-react';
-
-interface Invite {
-    id: string;
-    inviter_id: string;
-    invitee_email: string;
-    status: string;
-    created_at: string;
-}
+import { UserPlus, Check, X, Mail, Shield, User as UserIcon, Loader2, Send } from 'lucide-react';
+import clsx from 'clsx';
 
 export default function CaregiverInvites() {
-    const [invites, setInvites] = useState<Invite[]>([]);
-    const [receivedInvites, setReceivedInvites] = useState<any[]>([]);
+    const {
+        invites,
+        fetchInvites,
+        sendInvite,
+        acceptInvite,
+        rejectInvite,
+        isLoading,
+        error
+    } = useMedicationStore();
     const [email, setEmail] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [sending, setSending] = useState(false);
-    const [user, setUser] = useState<any>(null);
+    const [success, setSuccess] = useState(false);
 
     useEffect(() => {
-        const loadData = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
-            setUser(session.user);
+        fetchInvites();
+    }, [fetchInvites]);
 
-            // Load invites sent by me (as a potential dependent)
-            const { data: sent } = await supabase
-                .from('caregiver_invites')
-                .select('*')
-                .eq('inviter_id', session.user.id);
-
-            if (sent) setInvites(sent);
-
-            // Load invites received by me (as a potential caregiver)
-            const { data: received } = await supabase
-                .from('caregiver_invites')
-                .select('*, profiles(full_name, email)')
-                .eq('invitee_email', session.user.email)
-                .eq('status', 'pending');
-
-            if (received) setReceivedInvites(received);
-
-            setLoading(false);
-        };
-
-        loadData();
-    }, []);
-
-    const sendInvite = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!email || !user) return;
-        setSending(true);
-
-        try {
-            const { error } = await supabase
-                .from('caregiver_invites')
-                .insert([
-                    {
-                        inviter_id: user.id,
-                        invitee_email: email,
-                        status: 'pending'
-                    }
-                ]);
-
-            if (error) throw error;
-
-            alert('Invite sent! Your caregiver will see it in their profile.');
+        setSuccess(false);
+        await sendInvite(email);
+        if (!error) {
+            setSuccess(true);
             setEmail('');
-            // Refresh sent invites
-            const { data } = await supabase
-                .from('caregiver_invites')
-                .select('*')
-                .eq('inviter_id', user.id);
-            if (data) setInvites(data);
-        } catch (error: any) {
-            alert(error.message || 'Failed to send invite.');
-        } finally {
-            setSending(false);
         }
     };
 
-    const handleInviteStatus = async (inviteId: string, status: 'accepted' | 'rejected') => {
-        try {
-            const { error: inviteError } = await supabase
-                .from('caregiver_invites')
-                .update({ status })
-                .eq('id', inviteId);
-
-            if (inviteError) throw inviteError;
-
-            if (status === 'accepted') {
-                const invite = receivedInvites.find(i => i.id === inviteId);
-                // Update the dependent's profile to point to this caregiver
-                await supabase
-                    .from('profiles')
-                    .update({ caregiver_id: user.id })
-                    .eq('id', invite.inviter_id);
-            }
-
-            setReceivedInvites(prev => prev.filter(i => i.id !== inviteId));
-            alert(`Invite ${status}!`);
-        } catch (error: any) {
-            alert(error.message || 'Operation failed.');
-        }
-    };
-
-    if (loading) return <div className="flex justify-center p-8"><Loader2 className="animate-spin text-teal-600" /></div>;
+    const receivedInvites = invites.filter(i => i.status === 'pending' && i.invitee_email !== i.inviter?.email);
+    // Note: The store's fetchInvites fetches both sent and received. 
+    // We filter appropriately for the UI.
 
     return (
         <div className="space-y-8">
             {/* Received Invites Section (Caregiver side) */}
             <AnimatePresence>
-                {receivedInvites.length > 0 && (
+                {invites.some(i => i.status === 'pending' && i.inviter_id !== invites[0]?.inviter_id) && (
                     <div className="bg-teal-50 dark:bg-teal-900/20 p-6 rounded-[2rem] border border-teal-100 dark:border-teal-800/50">
                         <h3 className="text-xl font-black text-teal-900 dark:text-teal-100 mb-4 flex items-center gap-2">
                             <Shield className="w-5 h-5" />
                             Caregiver Invitations
                         </h3>
                         <div className="space-y-4">
-                            {receivedInvites.map((invite) => (
+                            {invites.filter(i => i.status === 'pending').map((invite) => (
                                 <motion.div
                                     key={invite.id}
                                     layout
@@ -134,20 +61,26 @@ export default function CaregiverInvites() {
                                             <UserIcon className="w-5 h-5" />
                                         </div>
                                         <div>
-                                            <p className="text-sm font-bold text-slate-900 dark:text-white">{invite.profiles.full_name}</p>
-                                            <p className="text-xs text-slate-500">{invite.profiles.email} wants you as their caregiver.</p>
+                                            <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                                {invite.inviter?.full_name || 'Relative'}
+                                            </p>
+                                            <p className="text-xs text-slate-500">
+                                                {invite.inviter?.email} wants you as their caregiver.
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => handleInviteStatus(invite.id, 'accepted')}
-                                            className="p-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+                                            onClick={() => acceptInvite(invite.id)}
+                                            disabled={isLoading}
+                                            className="p-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
                                         >
                                             <Check className="w-4 h-4" />
                                         </button>
                                         <button
-                                            onClick={() => handleInviteStatus(invite.id, 'rejected')}
-                                            className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                            onClick={() => rejectInvite(invite.id)}
+                                            disabled={isLoading}
+                                            className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50"
                                         >
                                             <X className="w-4 h-4" />
                                         </button>
@@ -165,7 +98,7 @@ export default function CaregiverInvites() {
                     <UserPlus className="w-5 h-5 text-teal-600" />
                     Invite a Caregiver
                 </h3>
-                <form onSubmit={sendInvite} className="flex gap-3">
+                <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                         <input
@@ -179,23 +112,38 @@ export default function CaregiverInvites() {
                     </div>
                     <button
                         type="submit"
-                        disabled={sending}
-                        className="px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-teal-100 dark:shadow-none disabled:opacity-50"
+                        disabled={isLoading || !email}
+                        className="px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-teal-100 dark:shadow-none disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                        {sending ? <Loader2 className="animate-spin" /> : 'Send Invite'}
+                        {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : (
+                            <>
+                                <Send className="w-4 h-4" />
+                                Send Invite
+                            </>
+                        )}
                     </button>
                 </form>
+
+                {error && <p className="mt-2 text-sm text-red-600 font-bold">{error}</p>}
+                {success && <p className="mt-2 text-sm text-teal-600 font-bold">Invite sent successfully!</p>}
 
                 {/* Sent Invites List */}
                 {invites.length > 0 && (
                     <div className="mt-8 space-y-3">
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest pl-2">Pending Invites</p>
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest pl-2">Recent Invitations</p>
                         {invites.map((invite) => (
                             <div key={invite.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
-                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{invite.invitee_email}</span>
-                                <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-1 rounded-full ${invite.status === 'accepted' ? 'bg-teal-100 text-teal-600' :
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{invite.invitee_email}</span>
+                                    {invite.inviter?.full_name && (
+                                        <span className="text-[10px] text-slate-400">From: {invite.inviter.full_name}</span>
+                                    )}
+                                </div>
+                                <span className={clsx(
+                                    "text-[10px] font-black uppercase tracking-tighter px-2 py-1 rounded-full",
+                                    invite.status === 'accepted' ? 'bg-teal-100 text-teal-600' :
                                         invite.status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
-                                    }`}>
+                                )}>
                                     {invite.status}
                                 </span>
                             </div>

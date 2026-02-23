@@ -65,8 +65,9 @@ export default function NotificationManager() {
         const checkDependentMissedDoses = async () => {
             if (Notification.permission !== 'granted') return;
 
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            const { data, error: authError } = await supabase.auth.getUser();
+            const user = data?.user;
+            if (authError || !user) return;
 
             // Get users who have this person as their caregiver
             const { data: dependents } = await supabase
