@@ -8,7 +8,7 @@ import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
-    const { medications, removeMedication, updateStatus, checkDailyReset, streak, history, fetchMedications } = useMedicationStore();
+    const { medications, deleteMedication, updateStatus, checkDailyReset, streak, history, fetchMedications } = useMedicationStore();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -237,7 +237,7 @@ export default function Dashboard() {
                                 </div>
 
                                 <button
-                                    onClick={() => removeMedication(med.id)}
+                                    onClick={() => deleteMedication(med.id)}
                                     className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200"
                                     aria-label="Remove medication"
                                 >
